@@ -88,7 +88,6 @@ class Main(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument('vol', required=True)
         args = parser.parse_args()
-        print(args)
 
         data = load_data()
 
@@ -107,7 +106,8 @@ class Main(Resource):
 
 def boot_function(display_host):
     time.sleep(1)
-    print(f'''\n\tMyVol2 IP: {display_host}\n\tTo change the IP (If using a VPN or Adaptor) edit settings.json''')
+    print(f'\n\tMyVol2 IP: {display_host}\n\tTo change the IP (If using a VPN or Adaptor) edit settings.json'
+          f' or delete settings.json to start fresh.\n')
 
 
 def get_adaptor():
@@ -145,7 +145,7 @@ def get_adaptor():
         except IndexError:
             number = input(f'Insert a number between [0-{counter - 1}]: ')
         else:
-            print('Adaptor saved, adjust saved IP via settings.json file')
+            print('Adaptor saved, adjust saved IP via settings.json file\n')
             with open(settings_json, 'w') as f:
                 json.dump({'host': new_ip}, f, indent=2)
             return new_ip

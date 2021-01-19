@@ -7,8 +7,44 @@ import win32process
 from win32gui import GetForegroundWindow
 import pythoncom
 from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
+import threading
+import time
+import os
+import psutil
 
-host = socket.gethostbyname(socket.gethostname())
+
+def check_settings():
+    if not os.path.exists('server_data.json'):
+        with open('server_data.json', 'w') as f:
+            json.dump({"exe": None, "vol": None, "refresh": False}, f, indent=2)
+
+
+def get_host_name():
+    settings_json = 'settings.json'
+    temp_host = ''
+    try:
+        with open(settings_json, 'r') as f:
+            temp_host = json.load(f)['host']
+    except FileNotFoundError:
+        temp_host = socket.gethostbyname(socket.gethostname())
+        with open(settings_json, 'w') as f:
+            json.dump({'host': temp_host}, f, indent=2)
+    return temp_host
+
+
+def get_host_name_new():
+    get_host = socket.gethostbyname(socket.gethostname())
+    settings_json = 'settings.json'
+    try:
+        with open(settings_json, 'r') as f:
+            user_host = json.load(f)['host']
+    except FileNotFoundError:
+        with open(settings_json, 'w') as f:
+            json.dump({'host': get_host}, f, indent=2)
+    else:
+        if user_host != get_host:
+            return user_host, user_host
+    return '0.0.0.0', get_host
 
 
 def get_vol(process):
@@ -95,10 +131,55 @@ class Main(Resource):
         return data, 200
 
 
+def boot_function(display_host):
+    time.sleep(1)
+    print(f'''\n\tMyVol2 IP: {display_host}\n\tTo change the IP (If using a VPN or Adaptor) edit settings.json''')
+
+
+def get_adaptor():
+    adaptors_addr = psutil.net_if_addrs()
+    adaptor_stat = psutil.net_if_stats()
+    open_adators = 0
+
+    counter = 0
+    ip_list = []
+    for adaptor in adaptors_addr:
+        adaptor_name = adaptor
+        if getattr(adaptor_stat[adaptor], 'isup') is False:
+            continue
+        for ip in adaptors_addr[adaptor]:
+            if getattr(ip, 'family').name == 'AF_INET':
+                address = getattr(ip, 'address')
+                print(f'[{counter}] {adaptor_name}: {address}')
+                ip_list.append(address)
+                counter += 1
+
+    if len(ip_list) == 1:
+        return ip_list[0]
+
+    number = input(f'Pick adaptor [0-{counter-1}]: ')
+    while True:
+        try:
+            number = int(number)
+            print('')
+            return ip_list[number]
+        except ValueError:
+            number = input(f'Insert a number value [0-{counter-1}]: ')
+        except IndexError:
+            number = input(f'Insert a number between [0-{counter - 1}]: ')
+
+
 app = Flask(__name__)
 api = Api(app)
 
 api.add_resource(Main, '/main')
 
+
 if __name__ == '__main__':
-    app.run(host=host, port=5010)
+    display_host = get_adaptor()
+    flask_host = display_host
+    check_settings()
+    # flask_host, display_host = get_host_name_new()
+    boot_thread = threading.Thread(target=boot_function, args=[display_host])
+    boot_thread.start()
+    app.run(host=flask_host, port=5010)

@@ -12,39 +12,13 @@ import time
 import os
 import psutil
 
+settings_json = 'settings.json'
+server_data = 'server_data.json'
 
 def check_settings():
-    if not os.path.exists('server_data.json'):
-        with open('server_data.json', 'w') as f:
+    if not os.path.exists(server_data):
+        with open(server_data, 'w') as f:
             json.dump({"exe": None, "vol": None, "refresh": False}, f, indent=2)
-
-
-def get_host_name():
-    settings_json = 'settings.json'
-    temp_host = ''
-    try:
-        with open(settings_json, 'r') as f:
-            temp_host = json.load(f)['host']
-    except FileNotFoundError:
-        temp_host = socket.gethostbyname(socket.gethostname())
-        with open(settings_json, 'w') as f:
-            json.dump({'host': temp_host}, f, indent=2)
-    return temp_host
-
-
-def get_host_name_new():
-    get_host = socket.gethostbyname(socket.gethostname())
-    settings_json = 'settings.json'
-    try:
-        with open(settings_json, 'r') as f:
-            user_host = json.load(f)['host']
-    except FileNotFoundError:
-        with open(settings_json, 'w') as f:
-            json.dump({'host': get_host}, f, indent=2)
-    else:
-        if user_host != get_host:
-            return user_host, user_host
-    return '0.0.0.0', get_host
 
 
 def get_vol(process):
@@ -137,6 +111,10 @@ def boot_function(display_host):
 
 
 def get_adaptor():
+    if os.path.exists(settings_json):
+        with open(settings_json, 'r') as f:
+            return json.load(f)['host']
+
     adaptors_addr = psutil.net_if_addrs()
     adaptor_stat = psutil.net_if_stats()
     open_adators = 0
@@ -161,12 +139,16 @@ def get_adaptor():
     while True:
         try:
             number = int(number)
-            print('')
-            return ip_list[number]
+            new_ip = ip_list[number]
         except ValueError:
             number = input(f'Insert a number value [0-{counter-1}]: ')
         except IndexError:
             number = input(f'Insert a number between [0-{counter - 1}]: ')
+        else:
+            print('Adaptor saved, adjust saved IP via settings.json file')
+            with open(settings_json, 'w') as f:
+                json.dump({'host': new_ip}, f, indent=2)
+            return new_ip
 
 
 app = Flask(__name__)
@@ -174,12 +156,10 @@ api = Api(app)
 
 api.add_resource(Main, '/main')
 
-
 if __name__ == '__main__':
     display_host = get_adaptor()
     flask_host = display_host
     check_settings()
-    # flask_host, display_host = get_host_name_new()
     boot_thread = threading.Thread(target=boot_function, args=[display_host])
     boot_thread.start()
     app.run(host=flask_host, port=5010)

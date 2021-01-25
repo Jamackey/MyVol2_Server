@@ -1,7 +1,6 @@
 from flask import Flask
 from flask_restful import Resource, Api, reqparse
 import json
-import socket
 import wmi
 import win32process
 from win32gui import GetForegroundWindow
@@ -15,10 +14,13 @@ import psutil
 settings_json = 'settings.json'
 server_data = 'server_data.json'
 
+priority_2 = ['discord.exe', 'msedge.exe', 'chrome.exe']
+
+
 def check_settings():
     if not os.path.exists(server_data):
         with open(server_data, 'w') as f:
-            json.dump({"exe": None, "vol": None, "refresh": False}, f, indent=2)
+            json.dump({'exe': None, 'vol': None}, f, indent=2)
 
 
 def get_vol(process):
@@ -27,6 +29,33 @@ def get_vol(process):
         volume = session._ctl.QueryInterface(ISimpleAudioVolume)
         if session.Process and session.Process.name() == process:
             return volume.GetMasterVolume()
+
+
+def get_priority(exe_name):
+    if exe_name == get_current_process():
+        return 'priority_1'
+    elif exe_name in priority_2:
+        return 'priority_2'
+    return 'priority_3'
+
+
+def get_all():
+    sessions = AudioUtilities.GetAllSessions()
+    priority = {'priority_1': {}, 'priority_2': {}, 'priority_3': {}}
+    for session in sessions:
+        if session.Process:
+            process = {}
+            name = session.Process.name()
+            volume = session._ctl.QueryInterface(ISimpleAudioVolume)
+            volume = volume.GetMasterVolume()
+            try:
+               volume = int(volume * 100)
+            except Exception as e:
+                volume = None
+                print(e)
+                continue
+            priority[get_priority(name)] = {name: volume}
+    return priority
 
 
 def change_vol(value, process):
@@ -67,7 +96,7 @@ def get_process_and_vol():
 
 def save_data(data):
     with open('server_data.json', 'w') as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=2)
 
 
 def load_data():
@@ -81,6 +110,7 @@ class Main(Resource):
     def get(self):
         data = load_data()
         data['exe'], data['vol'] = get_process_and_vol()
+        data['all'] = get_all()
         save_data(data)
         return data, 200
 
